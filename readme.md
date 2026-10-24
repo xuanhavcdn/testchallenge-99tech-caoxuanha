@@ -7,9 +7,69 @@ An end-to-end test automation framework for [DemoBlaze](https://www.demoblaze.co
 | Test case suite (Excel) | [`docs/DemoBlaze_Test_Cases.xlsx`](docs/DemoBlaze_Test_Cases.xlsx): 65 cases and a defect log |
 | Automation framework | this repository |
 | Demo script: log in, add to cart, place order | [`tests/e2e/login-and-place-order.spec.ts`](tests/e2e/login-and-place-order.spec.ts) |
-| CI pipeline: on push to `main`, a daily schedule and on demand | [`.github/workflows/playwright.yml`](.github/workflows/playwright.yml), see [CI](#ci-github-actions) |
+| CI pipeline: on push to `main`, smoke tests every 2 hours and on demand | [`.github/workflows/smoke.yml`](.github/workflows/smoke.yml), see [CI](#ci-github-actions) |
+| Regression run every weekday at 08:00 (Vietnam time) | [`.github/workflows/regression.yml`](.github/workflows/regression.yml), see [Scheduled runs](#scheduled-runs) |
 | Slack notification after every CI run | [`scripts/notify-slack.mts`](scripts/notify-slack.mts), see [Slack notification](#slack-notification) |
 | Login health check every 30 minutes, with a Slack alert on failure | [`.github/workflows/healthcheck.yml`](.github/workflows/healthcheck.yml), see [Login health check](#login-health-check) |
+
+---
+
+## Challenge checklist
+
+How each item in the [challenge brief](https://s5tech.notion.site/QA-Automation-Challenge-1d748905ea7780038b4cc1c1eea6087c) is delivered, followed by what was added on top of it.
+
+### Test case documentation
+
+- [x] Login and Cart features reviewed on [demoblaze.com](https://www.demoblaze.com)
+- [x] Functional scenarios: 25 cases
+- [x] Edge cases: 15 cases
+- [x] Negative paths: 16 cases
+- [x] Documented in Excel: [`docs/DemoBlaze_Test_Cases.xlsx`](docs/DemoBlaze_Test_Cases.xlsx), with 65 cases (Login 22, Cart & Order 29, API 14), 50 of them automated and 15 manual. See [Test case suite](#test-case-suite).
+
+### End-to-end automation framework
+
+- [x] Playwright with TypeScript: [`playwright.config.ts`](playwright.config.ts)
+- [x] Cross-browser and cross-platform: Chromium, Firefox and WebKit (the Safari engine), selected with `BROWSERS`. Runs on Linux, macOS and Windows.
+- [x] Modular design: page objects with components, fixtures, test data builders and an API client. See [Framework structure](#framework-structure).
+- [x] CI/CD: GitHub Actions on every push to `main`, on a schedule (smoke tests every 2 hours, regression every weekday) and on demand. See [CI](#ci-github-actions).
+- [x] Configurable parameters: `.env.demo` / `.env.prod`, selected with `ENV` and overridable by environment variables. See [Configuration](#configuration).
+- [x] Comprehensive reporting: HTML, JUnit XML and JSON reports, plus the screenshot, video and trace of every failure. See [Reports](#reports).
+- [x] UI tests: [`tests/ui`](tests/ui)
+- [x] API tests: [`tests/api`](tests/api)
+- [x] Regression tests: `@regression` and `@smoke` tags. See [Tags](#tags).
+- [x] Performance tests: [`tests/performance`](tests/performance). See [Performance tests](#performance-tests).
+
+### Automation demo
+
+- [x] Logs in with valid credentials: [`tests/e2e/login-and-place-order.spec.ts`](tests/e2e/login-and-place-order.spec.ts), `TC_E2E_001`
+- [x] Adds to cart, then places an order (same test)
+- [x] Validates every step: the welcome message, the "Product added" alert, the cart items and total, the order total, the confirmation details, and that the cart is empty afterwards
+- [x] Handles typical and edge cases: login, cart and place-order suites in [`tests/ui`](tests/ui), for example wrong password, case-sensitive username, duplicate items, delete and recalculate, a missing name or card, a non-numeric card and an empty cart
+
+### Deliverables
+
+- [x] Test case suite for Login and Cart, in Excel
+- [x] A working framework with scripts that cover the Login and Cart use cases
+- [x] Public GitHub repository: [xuanhavcdn/testchallenge-99tech-caoxuanha](https://github.com/xuanhavcdn/testchallenge-99tech-caoxuanha)
+- [x] README explaining the framework structure and the reasoning behind it: [Framework structure](#framework-structure) and [Design decisions](#design-decisions)
+- [x] README steps to run the demo scripts: [Quick start](#quick-start)
+
+### Extras beyond the brief
+
+- [x] **Defect log:** 7 defects found during analysis, in the workbook and in [Defects found](#defects-found). Three of them are executable `test.fail()` tests, which turn red once the defect is fixed.
+- [x] **REST API suite:** 15 tests covering auth, products and cart
+- [x] **Performance budgets:** page-load Navigation Timing and p50/p95 API latency, attached to the report
+- [x] **Demo and prod environments:** on prod, only read-only tests tagged `@prod` run, so an order can never be placed there
+- [x] **Tags and npm scripts** for each suite, scope, feature and environment
+- [x] **Scheduled runs:** smoke tests every 2 hours and the full regression every weekday morning, plus manual runs where you choose the environment, suite, feature, scope, browsers and an extra filter
+- [x] **Slack notification** after every CI run, with the status, counts, failed tests and buttons to open the run and download the report
+- [x] **Login health check** every 30 minutes on CI. It alerts Slack only when it fails.
+- [x] **Quality gates:** TypeScript type-check, ESLint (with Playwright rules and a 120-character line limit) and Prettier, all run on CI before the tests
+- [x] **Traceability:** the workbook is generated from code (`npm run testcases`), so the test IDs in the specs and in the Excel file always match
+- [x] **Test isolation on a shared public site:** each test gets its own guest cart cookie, and a cross-process lock protects the shared account's cart
+- [x] **Fast setup:** the account logs in once per run and the session is reused. The API is used for setup and the UI for what is under test.
+- [x] **Reliable `alert()` handling** for DemoBlaze's native dialogs
+- [x] **Claude Code skill** ([`.claude/skills/implement-test-case`](.claude/skills/implement-test-case/SKILL.md)) that guides adding new test cases in the framework's conventions
 
 ---
 
@@ -169,7 +229,10 @@ ENV=demo HEADLESS=false WORKER=1 npx playwright test --grep TC_E2E_001   # overr
 ├── playwright.config.ts            # projects, reporters, timeouts, artefacts
 ├── eslint.config.mjs               # lint rules, incl. 120-character line limit
 ├── .prettierrc.json                # formatting, same 120-character width
-└── .github/workflows/playwright.yml
+└── .github/workflows/
+    ├── smoke.yml                   # push, smoke every 2 hours, manual runs
+    ├── regression.yml              # regression every weekday, reuses smoke.yml
+    └── healthcheck.yml             # login health check every 30 minutes
 ```
 
 ### Design decisions
@@ -217,7 +280,7 @@ export class CartPage extends BasePage {
 | --- | --- |
 | Cross-browser / platform | Projects for Chromium, Firefox and WebKit (Safari engine), Chromium by default (`BROWSERS`). Runs on Linux, macOS and Windows. |
 | Modular, scalable design | Page objects + components, fixtures, data builders, API client. A new page or feature is one more page object and one more spec file. |
-| CI/CD | GitHub Actions: on push to `main`, a daily smoke run, and on demand with environment, suite, feature, scope and browser inputs. Credentials come from GitHub environment secrets. Reports are uploaded as artefacts, and every run posts its result to Slack. The suite is a plain `npx playwright test`, so Jenkins and GitLab only need `npm ci && npx playwright install --with-deps && npx playwright test`. See [CI](#ci-github-actions). |
+| CI/CD | GitHub Actions: on push to `main`, smoke tests every 2 hours, regression every weekday, and on demand with environment, suite, feature, scope and browser inputs. Credentials come from GitHub environment secrets. Reports are uploaded as artefacts, and every run posts its result to Slack. The suite is a plain `npx playwright test`, so Jenkins and GitLab only need `npm ci && npx playwright install --with-deps && npx playwright test`. See [CI](#ci-github-actions). |
 | Configurable parameters | `.env.demo` / `.env.prod` selected by `ENV`, overridable by environment variables; see [Configuration](#configuration). |
 | Reporting | Everything a run produces is in `playwright-report/`: HTML report (`html/`, open with `npm run report`), JUnit XML (`junit.xml`) for CI dashboards, JSON (`results.json`), and the screenshot, video and Playwright trace of each failure (`test-results/`). GitHub annotations on CI, and a Slack summary after every CI run. |
 | Test types | **UI** (`tests/ui`), **E2E** (`tests/e2e`), **API** (`tests/api`), **performance** (`tests/performance`), **regression / smoke** through `@regression` and `@smoke` tags; see [Tags](#tags). |
@@ -230,19 +293,21 @@ export class CartPage extends BasePage {
 
 ## CI (GitHub Actions)
 
-The workflow [`.github/workflows/playwright.yml`](.github/workflows/playwright.yml) runs the suite, publishes the reports and posts the result to Slack.
+The workflow [`.github/workflows/smoke.yml`](.github/workflows/smoke.yml) runs the suite, publishes the reports and posts the result to Slack. [`.github/workflows/regression.yml`](.github/workflows/regression.yml) reuses it to run the regression suite on its own schedule.
 
 ### When it runs
 
-| Trigger | When | What runs |
-| --- | --- | --- |
-| Push | Every push to `main` | Everything on `demo`: API, UI/E2E on Chromium, Firefox and WebKit, performance |
-| Schedule | Every day at 08:00 Vietnam time (01:00 UTC) | Smoke tests (`@smoke`) on `demo`, all suites and browsers |
-| Manual | *Actions → E2E tests → Run workflow* | What you choose (see below) |
+| Workflow | Trigger | When | What runs |
+| --- | --- | --- | --- |
+| E2E tests | Push | Every push to `main` | Everything on `demo`: API, UI/E2E on Chromium, Firefox and WebKit, performance |
+| E2E tests | Schedule | Every 2 hours, on the hour (07:00, 09:00, … Vietnam time) | Smoke tests (`@smoke`) on `demo`, all suites and browsers |
+| E2E tests | Manual | *Actions → E2E tests → Run workflow* | What you choose (see below) |
+| Regression tests | Schedule | Monday to Friday at 08:00 Vietnam time (01:00 UTC) | Regression tests (`@regression`) on `demo`, all suites and browsers |
+| Regression tests | Manual | *Actions → Regression tests → Run workflow* | Regression tests on the environment and browsers you choose (default `demo`, all three browsers) |
 
 Opening or updating a pull request does not start the workflow. To test a branch before merging, start a manual run on it: choose the branch in *Run workflow*.
 
-A manual run lets you choose:
+A manual run of *E2E tests* lets you choose:
 
 | Input | Options | Default |
 | --- | --- | --- |
@@ -255,9 +320,18 @@ A manual run lets you choose:
 
 The inputs are combined into tag filters, so for example *Feature `cart` + Scope `smoke`* runs only tests tagged both `@cart` and `@smoke`. On `prod` only tests tagged `@prod` run.
 
-### Scheduled run
+### Scheduled runs
 
-The daily run checks every morning that the critical paths still work on the live demo site, even when no code has changed. It runs the `@smoke` tests on `demo` across all suites and browsers, and its result arrives in Slack like any other run. To change the time, edit the `cron` line in the workflow. GitHub cron times are in UTC and can start a few minutes late when GitHub is busy.
+Two schedules check the live demo site even when no code has changed:
+
+- **Smoke tests every 2 hours** ([`smoke.yml`](.github/workflows/smoke.yml)): the `@smoke` tests on `demo` across all suites and browsers. They catch a broken critical path (log in, add to cart, place an order) within 2 hours. The Slack title is *Smoke tests*.
+- **Regression every weekday at 08:00** ([`regression.yml`](.github/workflows/regression.yml)): the full `@regression` suite on `demo` across all suites and browsers, Monday to Friday, so the team starts the day with a full result. It calls `smoke.yml` as a reusable workflow, so the checks, reports and Slack message are the same; only the scope and the Slack title (*Regression tests*) differ.
+
+The two schedules don't start at the same time: smoke runs on odd Vietnam hours and regression at 08:00.
+
+Only one run of either workflow runs at a time on each environment, because every run uses the same DemoBlaze account and its cart. A run that starts while another is going waits for it to finish. GitHub keeps only one waiting run per environment, so if a third run starts meanwhile, it replaces the one that was waiting.
+
+To change a time, edit the `cron` line in the workflow. GitHub cron times are in UTC, scheduled runs can start a few minutes late when GitHub is busy, and they only run from the default branch (`main`).
 
 ### What a run does
 
