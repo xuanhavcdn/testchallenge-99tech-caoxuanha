@@ -7,7 +7,7 @@ An end-to-end test automation framework for [DemoBlaze](https://www.demoblaze.co
 | Test case suite (Excel) | [`docs/DemoBlaze_Test_Cases.xlsx`](docs/DemoBlaze_Test_Cases.xlsx): 65 cases and a defect log |
 | Automation framework | this repository |
 | Demo script: log in, add to cart, place order | [`tests/e2e/login-and-place-order.spec.ts`](tests/e2e/login-and-place-order.spec.ts) |
-| CI pipeline: on push to `main`, smoke tests every 2 hours and on demand | [`.github/workflows/smoke.yml`](.github/workflows/smoke.yml), see [CI](#ci-github-actions) |
+| CI pipeline: smoke tests on every push to `main` and every 2 hours, and on demand | [`.github/workflows/smoke.yml`](.github/workflows/smoke.yml), see [CI](#ci-github-actions) |
 | Regression run every weekday at 08:00 (Vietnam time) | [`.github/workflows/regression.yml`](.github/workflows/regression.yml), see [Scheduled runs](#scheduled-runs) |
 | Slack notification after every CI run | [`scripts/notify-slack.mts`](scripts/notify-slack.mts), see [Slack notification](#slack-notification) |
 | Login health check every 30 minutes, with a Slack alert on failure | [`.github/workflows/healthcheck.yml`](.github/workflows/healthcheck.yml), see [Login health check](#login-health-check) |
@@ -31,7 +31,7 @@ How each item in the [challenge brief](https://s5tech.notion.site/QA-Automation-
 - [x] Playwright with TypeScript: [`playwright.config.ts`](playwright.config.ts)
 - [x] Cross-browser and cross-platform: Chromium, Firefox and WebKit (the Safari engine), selected with `BROWSERS`. Runs on Linux, macOS and Windows.
 - [x] Modular design: page objects with components, fixtures, test data builders and an API client. See [Framework structure](#framework-structure).
-- [x] CI/CD: GitHub Actions on every push to `main`, on a schedule (smoke tests every 2 hours, regression every weekday) and on demand. See [CI](#ci-github-actions).
+- [x] CI/CD: GitHub Actions: smoke tests on every push to `main` and every 2 hours, regression every weekday, and on demand. See [CI](#ci-github-actions).
 - [x] Configurable parameters: `.env.demo` / `.env.prod`, selected with `ENV` and overridable by environment variables. See [Configuration](#configuration).
 - [x] Comprehensive reporting: HTML, JUnit XML and JSON reports, plus the screenshot, video and trace of every failure. See [Reports](#reports).
 - [x] UI tests: [`tests/ui`](tests/ui)
@@ -230,7 +230,7 @@ ENV=demo HEADLESS=false WORKER=1 npx playwright test --grep TC_E2E_001   # overr
 ├── eslint.config.mjs               # lint rules, incl. 120-character line limit
 ├── .prettierrc.json                # formatting, same 120-character width
 └── .github/workflows/
-    ├── smoke.yml                   # push, smoke every 2 hours, manual runs
+    ├── smoke.yml                   # smoke on push and every 2 hours, manual runs
     ├── regression.yml              # regression every weekday, reuses smoke.yml
     └── healthcheck.yml             # login health check every 30 minutes
 ```
@@ -280,7 +280,7 @@ export class CartPage extends BasePage {
 | --- | --- |
 | Cross-browser / platform | Projects for Chromium, Firefox and WebKit (Safari engine), Chromium by default (`BROWSERS`). Runs on Linux, macOS and Windows. |
 | Modular, scalable design | Page objects + components, fixtures, data builders, API client. A new page or feature is one more page object and one more spec file. |
-| CI/CD | GitHub Actions: on push to `main`, smoke tests every 2 hours, regression every weekday, and on demand with environment, suite, feature, scope and browser inputs. Credentials come from GitHub environment secrets. Reports are uploaded as artefacts, and every run posts its result to Slack. The suite is a plain `npx playwright test`, so Jenkins and GitLab only need `npm ci && npx playwright install --with-deps && npx playwright test`. See [CI](#ci-github-actions). |
+| CI/CD | GitHub Actions: smoke tests on push to `main` and every 2 hours, regression every weekday, and on demand with environment, suite, feature, scope and browser inputs. Credentials come from GitHub environment secrets. Reports are uploaded as artefacts, and every run posts its result to Slack. The suite is a plain `npx playwright test`, so Jenkins and GitLab only need `npm ci && npx playwright install --with-deps && npx playwright test`. See [CI](#ci-github-actions). |
 | Configurable parameters | `.env.demo` / `.env.prod` selected by `ENV`, overridable by environment variables; see [Configuration](#configuration). |
 | Reporting | Everything a run produces is in `playwright-report/`: HTML report (`html/`, open with `npm run report`), JUnit XML (`junit.xml`) for CI dashboards, JSON (`results.json`), and the screenshot, video and Playwright trace of each failure (`test-results/`). GitHub annotations on CI, and a Slack summary after every CI run. |
 | Test types | **UI** (`tests/ui`), **E2E** (`tests/e2e`), **API** (`tests/api`), **performance** (`tests/performance`), **regression / smoke** through `@regression` and `@smoke` tags; see [Tags](#tags). |
@@ -299,15 +299,15 @@ The workflow [`.github/workflows/smoke.yml`](.github/workflows/smoke.yml) runs t
 
 | Workflow | Trigger | When | What runs |
 | --- | --- | --- | --- |
-| E2E tests | Push | Every push to `main` | Everything on `demo`: API, UI/E2E on Chromium, Firefox and WebKit, performance |
-| E2E tests | Schedule | Every 2 hours, on the hour (07:00, 09:00, … Vietnam time) | Smoke tests (`@smoke`) on `demo`, all suites and browsers |
-| E2E tests | Manual | *Actions → E2E tests → Run workflow* | What you choose (see below) |
+| Smoke tests | Push | Every push to `main`, including merged pull requests | Smoke tests (`@smoke`) on `demo`, all suites and browsers. The full regression runs on its weekday schedule instead. |
+| Smoke tests | Schedule | Every 2 hours, on the hour (07:00, 09:00, … Vietnam time) | Smoke tests (`@smoke`) on `demo`, all suites and browsers |
+| Smoke tests | Manual | *Actions → Smoke tests → Run workflow* | What you choose (see below) |
 | Regression tests | Schedule | Monday to Friday at 08:00 Vietnam time (01:00 UTC) | Regression tests (`@regression`) on `demo`, all suites and browsers |
 | Regression tests | Manual | *Actions → Regression tests → Run workflow* | Regression tests on the environment and browsers you choose (default `demo`, all three browsers) |
 
 Opening or updating a pull request does not start the workflow. To test a branch before merging, start a manual run on it: choose the branch in *Run workflow*.
 
-A manual run of *E2E tests* lets you choose:
+A manual run of *Smoke tests* lets you choose any scope, not only smoke:
 
 | Input | Options | Default |
 | --- | --- | --- |

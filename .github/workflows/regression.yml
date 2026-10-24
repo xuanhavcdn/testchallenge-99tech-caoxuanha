@@ -16,7 +16,7 @@ on:
         default: 'chromium firefox webkit'
 
 jobs:
-  # Reuses the E2E workflow, so setup, reports and the Slack message are the same; only the scope differs.
+  # Reuses the Smoke tests workflow (smoke.yml), so setup, reports and the Slack message are the same; only the scope differs.
   regression:
     uses: ./.github/workflows/smoke.yml
     with:
