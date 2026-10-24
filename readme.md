@@ -250,7 +250,7 @@ A manual run lets you choose:
 | Suite | `all`, `api`, `e2e`, `performance` | `all` |
 | Feature | `all`, `login`, `product`, `cart`, `order` | `all` |
 | Scope | `all`, `smoke`, `regression` | `all` |
-| Browsers | Any of `chromium firefox webkit` | All three |
+| Browsers | Any of `chromium firefox webkit` | `chromium` (push and scheduled runs use all three) |
 | Extra filter | Any `--grep` text, e.g. `TC_LOGIN_002` | None |
 
 The inputs are combined into tag filters, so for example *Feature `cart` + Scope `smoke`* runs only tests tagged both `@cart` and `@smoke`. On `prod` only tests tagged `@prod` run.
