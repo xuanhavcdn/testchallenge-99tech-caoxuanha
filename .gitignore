@@ -1,0 +1,19 @@
+
+# Playwright
+node_modules/
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
+/reports/
+
+# OS
+.DS_Store
+
+# Local configuration - contains credentials. Only the template is committed.
+.env
+.env.demo
+.env.prod
+.env.*
+!.env.example
