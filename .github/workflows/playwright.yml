@@ -1,0 +1,131 @@
+name: E2E tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Daily smoke run on demo at 08:00 Vietnam time (UTC+7). GitHub cron is in UTC.
+    - cron: '0 1 * * *'
+  workflow_dispatch:
+    inputs:
+      env:
+        description: 'Target environment (only tests tagged @<env> run)'
+        type: choice
+        options: [demo, prod]
+        default: demo
+      suite:
+        description: 'Test suite'
+        type: choice
+        options: [all, api, e2e, performance]
+        default: all
+      feature:
+        description: 'Function under test'
+        type: choice
+        options: [all, login, product, cart, order]
+        default: all
+      scope:
+        description: 'Scope'
+        type: choice
+        options: [all, smoke, regression]
+        default: all
+      browsers:
+        description: 'Browsers for the e2e suite (space separated)'
+        default: 'chromium firefox webkit'
+      grep:
+        description: 'Extra filter on title/tag, e.g. TC_LOGIN_002 (optional)'
+        default: ''
+
+jobs:
+  test:
+    name: test (${{ inputs.env || 'demo' }} / ${{ inputs.suite || 'all' }} / ${{ inputs.feature || 'all' }} / ${{ inputs.scope || (github.event_name == 'schedule' && 'smoke' || 'all') }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Credentials and URLs come from the GitHub environment of the same name (Settings -> Environments).
+    environment: ${{ inputs.env || 'demo' }}
+    env:
+      CI: true
+      ENV: ${{ inputs.env || 'demo' }}
+      WORKER: 2
+      BASE_URL: ${{ vars.BASE_URL }}
+      API_URL: ${{ vars.API_URL }}
+      DEMO_USERNAME: ${{ secrets.DEMO_USERNAME }}
+      DEMO_PASSWORD: ${{ secrets.DEMO_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run format:check
+
+      - name: Select projects and tags
+        env:
+          SUITE: ${{ inputs.suite || 'all' }}
+          FEATURE: ${{ inputs.feature || 'all' }}
+          # The daily schedule runs smoke only; push, PR and manual runs default to everything.
+          SCOPE: ${{ inputs.scope || (github.event_name == 'schedule' && 'smoke' || 'all') }}
+          BROWSERS: ${{ inputs.browsers || 'chromium firefox webkit' }}
+          EXTRA_GREP: ${{ inputs.grep }}
+        run: |
+          case "$SUITE" in
+            api) projects="api" ;;
+            e2e) projects="$BROWSERS" ;;
+            performance) projects="performance" ;;
+            *) projects="api $BROWSERS performance" ;;
+          esac
+
+          # Every selected tag must be present: one lookahead per tag. The @<env> tag is
+          # enforced by playwright.config.ts from ENV.
+          grep=""
+          for tag in "$SUITE" "$FEATURE" "$SCOPE"; do
+            if [ "$tag" != all ]; then grep+="(?=.*@$tag\\b)"; fi
+          done
+          if [ -n "$EXTRA_GREP" ]; then grep+="(?=.*$EXTRA_GREP)"; fi
+          if [ -n "$grep" ]; then grep="^$grep"; fi
+
+          # Browser projects need their engine; performance measures page loads in Chromium.
+          install=""
+          for p in $projects; do
+            case "$p" in
+              api) ;;
+              performance) install+=" chromium" ;;
+              *) install+=" $p" ;;
+            esac
+          done
+
+          {
+            echo "PROJECTS=$projects"
+            echo "BROWSERS=$BROWSERS"
+            echo "GREP=$grep"
+            echo "BROWSERS_TO_INSTALL=$(echo $install | tr ' ' '\n' | sort -u | xargs)"
+          } >> "$GITHUB_ENV"
+          echo "env=$ENV projects=[$projects] grep=[$grep]"
+
+      - name: Install browsers
+        if: ${{ env.BROWSERS_TO_INSTALL != '' }}
+        run: npx playwright install --with-deps $BROWSERS_TO_INSTALL
+
+      # All projects run in one job on purpose: the account-cart lock that keeps
+      # tests sharing the DemoBlaze account from colliding works per machine.
+      - name: Run tests
+        run: |
+          args=()
+          for p in $PROJECTS; do args+=("--project=$p"); done
+          if [ -n "$GREP" ]; then args+=(--grep "$GREP"); fi
+          npx playwright test --pass-with-no-tests "${args[@]}"
+
+      - name: Upload reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-reports-${{ env.ENV }}
+          path: |
+            playwright-report/
+          retention-days: 14
