@@ -1,4 +1,4 @@
-import { Tag } from '../../config/tags';
+import { KnownBug, Tag } from '../../config/tags';
 import { buildOrder } from '../../src/data/orders';
 import { products } from '../../src/data/products';
 import { expect, test } from '../../src/fixtures';
@@ -111,6 +111,19 @@ test.describe('Place order', () => {
         test.fail(true, 'Known defect: the card number is not validated at all');
         await cartPage.openPlaceOrder();
         const result = await cartPage.submitOrder(buildOrder({ card: 'not-a-card' }));
+        expect(result.outcome).toBe('rejected');
+      },
+    );
+
+    test(
+      'TC_ORDER_011 rejects an invalid expiry month and year',
+      {
+        tag: [Tag.e2e, Tag.regression, Tag.cart, Tag.order, Tag.demo, KnownBug.demo],
+        annotation: { type: 'issue', description: 'D-05: card expiry month and year are not validated' },
+      },
+      async ({ cartPage }) => {
+        await cartPage.openPlaceOrder();
+        const result = await cartPage.submitOrder(buildOrder({ month: '13', year: '1999' }));
         expect(result.outcome).toBe('rejected');
       },
     );

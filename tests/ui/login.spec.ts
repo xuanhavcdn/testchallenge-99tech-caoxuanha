@@ -1,4 +1,4 @@
-import { Tag } from '../../config/tags';
+import { KnownBug, Tag } from '../../config/tags';
 import { expect, test } from '../../src/fixtures';
 import { loginModalTexts } from '../../src/pages/components/login-modal';
 import { navBarTexts } from '../../src/pages/components/nav-bar';
@@ -137,6 +137,23 @@ test.describe('Login', () => {
       await expect(modal.root).toBeHidden();
       await expect(homePage.nav.login).toBeVisible();
       await expect(homePage.nav.welcome).toBeHidden();
+    },
+  );
+
+  test(
+    'TC_LOGIN_019 issues an auth token that cannot be derived from the username',
+    {
+      tag: [Tag.e2e, Tag.regression, Tag.login, Tag.demo, Tag.prod, KnownBug.demo, KnownBug.prod],
+      annotation: { type: 'issue', description: 'D-04: the auth token is base64(username + expiry)' },
+    },
+    async ({ homePage, account }) => {
+      const modal = await homePage.openLoginModal();
+      await modal.submit(account.username, account.password);
+      await expect(homePage.nav.welcome).toHaveText(navBarTexts.welcome(account.username));
+
+      const token = (await homePage.page.context().cookies()).find((c) => c.name === 'tokenp_')?.value ?? '';
+      expect(token).not.toBe('');
+      expect(Buffer.from(token, 'base64').toString()).not.toContain(account.username);
     },
   );
 });

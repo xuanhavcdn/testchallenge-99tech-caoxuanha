@@ -287,7 +287,7 @@ const cases: TestCase[] = [
     steps: ['Log in', 'Base64-decode the tokenp_ cookie'],
     data: 'Valid account',
     expected: 'Token is random/opaque and cannot be derived from the username',
-    automation: 'Manual',
+    automation: `${LOGIN} (known bug: skipped on demo and prod)`,
     notes: 'Observed: token = base64(username + expiry), i.e. forgeable. See Defects D-04.',
   },
   {
@@ -678,7 +678,7 @@ const cases: TestCase[] = [
     steps: ['Fill month = 13 and year = 1999', 'Click "Purchase"'],
     data: 'month 13, year 1999',
     expected: 'Order rejected (invalid / expired card)',
-    automation: 'Manual',
+    automation: `${ORDER} (known bug: skipped on demo)`,
     notes: 'Defect D-05: month/year are not validated.',
   },
   {
@@ -1042,6 +1042,9 @@ summary.addRow([]);
 summary.addRow(['Application: https://www.demoblaze.com (API: https://api.demoblaze.com)']);
 summary.addRow([
   '"(expected to fail)" = automated check that documents a known defect; it turns red once the defect is fixed.',
+]);
+summary.addRow([
+  '"(known bug: skipped on <env>)" = automated check of a known defect, skipped on that environment until it is fixed.',
 ]);
 
 // One sheet per module
