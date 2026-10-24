@@ -101,6 +101,9 @@ jobs:
           done
 
           {
+            echo "SUITE=$SUITE"
+            echo "FEATURE=$FEATURE"
+            echo "SCOPE=$SCOPE"
             echo "PROJECTS=$projects"
             echo "BROWSERS=$BROWSERS"
             echo "GREP=$grep"
@@ -129,3 +132,18 @@ jobs:
           path: |
             playwright-report/
           retention-days: 14
+
+      # Always runs, so failed and cancelled runs are reported too. Never fails the job.
+      - name: Notify Slack
+        if: ${{ always() }}
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL_ID: ${{ vars.SLACK_CHANNEL_ID }}
+          SLACK_MENTION_USER_ID: ${{ vars.SLACK_MENTION_USER_ID || 'U06AG118M5K' }}
+          JOB_STATUS: ${{ job.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: node scripts/notify-slack.mts

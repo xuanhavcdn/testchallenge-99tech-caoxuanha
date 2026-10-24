@@ -229,6 +229,12 @@ export class CartPage extends BasePage {
 1. In the repository go to *Settings → Environments*, create the environments `demo` and `prod`, and add `DEMO_USERNAME` and `DEMO_PASSWORD` as secrets of each. These replace `.env.demo` / `.env.prod` on CI. `BASE_URL` and `API_URL` can be set as environment variables if they differ from the defaults.
 2. The workflow runs on push and PR to `main`, every day at 08:00 Vietnam time (01:00 UTC, smoke tests on `demo`), and on demand from *Actions → E2E tests → Run workflow*. On demand you choose the environment (`demo`/`prod`), suite (`api`/`e2e`/`performance`), function (`login`/`product`/`cart`/`order`), scope (`smoke`/`regression`), browsers and an optional extra `--grep`. The job uses the GitHub environment of the same name, which holds the `DEMO_USERNAME`/`DEMO_PASSWORD` secrets and optional `BASE_URL`/`API_URL` variables.
 3. Download the `playwright-reports-<env>` artefact (for example `playwright-reports-demo`) and open `playwright-report/html/index.html`.
+4. Every run ends with a Slack notification ([`scripts/notify-slack.mts`](scripts/notify-slack.mts)). It contains the status, test counts, failed tests, run context and links to the run, its report and the PR, and it mentions `SLACK_MENTION_USER_ID`. To enable it:
+   - Add the `SLACK_BOT_TOKEN` secret. The bot needs the `chat:write` scope.
+   - Add the `SLACK_CHANNEL_ID` variable (*Settings → Secrets and variables → Actions → Variables*), and invite the bot to that channel.
+   - Optionally set `SLACK_MENTION_USER_ID`. It defaults to `U06AG118M5K`.
+
+   Without the token or channel the step only logs a warning. Preview the message locally with `SLACK_DRY_RUN=1 node scripts/notify-slack.mts`.
 
 All browsers run in one job on purpose. The account-cart lock works per machine, so splitting browsers across parallel jobs would let them collide on the shared account. On CI, tests retry up to two times to absorb the instability of the public demo backend.
 
