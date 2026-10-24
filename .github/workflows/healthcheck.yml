@@ -1,0 +1,79 @@
+name: Login health check
+
+on:
+  schedule:
+    # Every 30 minutes. GitHub cron is in UTC and scheduled runs can start a few minutes late.
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+    inputs:
+      env:
+        description: 'Target environment'
+        type: choice
+        options: [demo, prod]
+        default: demo
+
+# One health check at a time per environment; a run that is still going is not cancelled.
+concurrency:
+  group: healthcheck-${{ inputs.env || 'demo' }}
+  cancel-in-progress: false
+
+jobs:
+  healthcheck:
+    name: login health check (${{ inputs.env || 'demo' }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Credentials and URLs come from the GitHub environment of the same name (Settings -> Environments).
+    environment: ${{ inputs.env || 'demo' }}
+    env:
+      CI: true
+      ENV: ${{ inputs.env || 'demo' }}
+      BASE_URL: ${{ vars.BASE_URL }}
+      API_URL: ${{ vars.API_URL }}
+      DEMO_USERNAME: ${{ secrets.DEMO_USERNAME }}
+      DEMO_PASSWORD: ${{ secrets.DEMO_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # The browser download is cached between runs; this job runs 48 times a day.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Chrome (Chromium)
+        run: npx playwright install --with-deps chromium
+
+      # Failed tests are retried up to 2 times (CI=true), so a single slow response does not raise an alert.
+      - name: Run login health check
+        run: npx playwright test --project=healthcheck
+
+      - name: Upload report
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: healthcheck-report-${{ env.ENV }}
+          path: playwright-report/
+          retention-days: 7
+
+      # Only failures are posted, so the channel is not flooded every 30 minutes.
+      - name: Notify Slack
+        if: ${{ failure() }}
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL_ID: ${{ vars.SLACK_CHANNEL_ID }}
+          SLACK_MENTION_USER_ID: ${{ vars.SLACK_MENTION_USER_ID || 'U06AG118M5K' }}
+          JOB_STATUS: ${{ job.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          RUN_NAME: Login health check
+          SUITE: healthcheck
+          FEATURE: login
+          SCOPE: smoke
+          BROWSERS: chromium
+        run: node scripts/notify-slack.mts

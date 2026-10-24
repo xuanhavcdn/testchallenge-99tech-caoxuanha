@@ -7,6 +7,7 @@
  *   SLACK_BOT_TOKEN        bot token with chat:write (secret)
  *   SLACK_CHANNEL_ID       channel to post in, e.g. C0123456789 (the bot must be a member)
  *   SLACK_MENTION_USER_ID  user to tag, e.g. U06AG118M5K
+ *   RUN_NAME               what ran, for the title (default "E2E tests")
  *   SLACK_DRY_RUN=1        print the message instead of sending it
  *
  * Never fails the job: problems are reported as workflow warnings.
@@ -68,7 +69,7 @@ function buildMessage() {
   const repoUrl = `${e.GITHUB_SERVER_URL}/${e.GITHUB_REPOSITORY}`;
   const sha = e.COMMIT_SHA ?? e.GITHUB_SHA ?? '';
   const mention = e.SLACK_MENTION_USER_ID ? `<@${e.SLACK_MENTION_USER_ID}> ` : '';
-  const title = `${status.icon} E2E tests ${status.label} on *${e.ENV ?? 'demo'}*`;
+  const title = `${status.icon} ${e.RUN_NAME ?? 'E2E tests'} ${status.label} on *${e.ENV ?? 'demo'}*`;
 
   const results = report
     ? [

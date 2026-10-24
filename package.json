@@ -18,6 +18,7 @@
     "test:ui": "BROWSERS=chromium,firefox,webkit playwright test --project=chromium --project=firefox --project=webkit",
     "test:api": "playwright test --project=api",
     "test:perf": "playwright test --project=performance",
+    "test:healthcheck": "playwright test --project=healthcheck",
     "test:chromium": "playwright test --project=chromium",
     "test:firefox": "BROWSERS=firefox playwright test --project=firefox",
     "test:webkit": "BROWSERS=webkit playwright test --project=webkit",

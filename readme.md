@@ -4,11 +4,12 @@ An end-to-end test automation framework for [DemoBlaze](https://www.demoblaze.co
 
 | Deliverable | Location |
 | --- | --- |
-| Test case suite (Excel) | [`docs/DemoBlaze_Test_Cases.xlsx`](docs/DemoBlaze_Test_Cases.xlsx): 63 cases and a defect log |
+| Test case suite (Excel) | [`docs/DemoBlaze_Test_Cases.xlsx`](docs/DemoBlaze_Test_Cases.xlsx): 65 cases and a defect log |
 | Automation framework | this repository |
 | Demo script: log in, add to cart, place order | [`tests/e2e/login-and-place-order.spec.ts`](tests/e2e/login-and-place-order.spec.ts) |
 | CI pipeline: on push to `main`, a daily schedule and on demand | [`.github/workflows/playwright.yml`](.github/workflows/playwright.yml), see [CI](#ci-github-actions) |
 | Slack notification after every CI run | [`scripts/notify-slack.mts`](scripts/notify-slack.mts), see [Slack notification](#slack-notification) |
+| Login health check every 30 minutes, with a Slack alert on failure | [`.github/workflows/healthcheck.yml`](.github/workflows/healthcheck.yml), see [Login health check](#login-health-check) |
 
 ---
 
@@ -46,6 +47,7 @@ Other entry points:
 | `npm run test:chromium` / `test:firefox` / `test:webkit` | UI + E2E on one engine |
 | `npm run test:api` | REST API tests (no browser) |
 | `npm run test:perf` | Page-load and API latency budgets |
+| `npm run test:healthcheck` | Login health check (UI + API) on Chrome, as run every 30 minutes on CI |
 | `npm run test:headed` | Chromium, browser visible |
 | `npm run typecheck` | TypeScript type-check |
 | `npm run lint` / `lint:fix` | ESLint: TypeScript and Playwright rules, plus a maximum line length of 120 characters |
@@ -60,7 +62,7 @@ All tags are defined in [config/tags.ts](config/tags.ts).
 
 | Group | Tags | Meaning |
 | --- | --- | --- |
-| Suite | `@api`, `@e2e`, `@performance` | REST API tests (`tests/api`), browser tests (`tests/ui`, `tests/e2e`), budgets (`tests/performance`) |
+| Suite | `@api`, `@e2e`, `@performance`, `@healthcheck` | REST API tests (`tests/api`), browser tests (`tests/ui`, `tests/e2e`), budgets (`tests/performance`), login health check (`tests/healthcheck`) |
 | Scope | `@smoke`, `@regression` | Critical path / full regression |
 | Function | `@login`, `@product`, `@cart`, `@order` | Feature under test |
 | Environment | `@demo`, `@prod` | Where a test may run. Every test runs on `demo`; only read-only tests that leave no data behind (login, product API, empty cart, performance) are tagged `@prod` |
@@ -159,7 +161,8 @@ ENV=demo HEADLESS=false WORKER=1 npx playwright test --grep TC_E2E_001   # overr
 │   ├── ui/                         # login, cart, place-order (functional, negative, edge)
 │   ├── e2e/                        # the challenge demo flow
 │   ├── api/                        # REST API tests
-│   └── performance/                # page-load + latency budgets
+│   ├── performance/                # page-load + latency budgets
+│   └── healthcheck/                # login health check, run every 30 minutes
 ├── scripts/generate-test-cases.mts # builds docs/DemoBlaze_Test_Cases.xlsx
 ├── docs/DemoBlaze_Test_Cases.xlsx
 ├── .env.example                    # template for .env.demo / .env.prod (git-ignored)
@@ -247,7 +250,7 @@ A manual run lets you choose:
 | Suite | `all`, `api`, `e2e`, `performance` | `all` |
 | Feature | `all`, `login`, `product`, `cart`, `order` | `all` |
 | Scope | `all`, `smoke`, `regression` | `all` |
-| Browsers | Any of `chromium firefox webkit` | All three |
+| Browsers | Any of `chromium firefox webkit` | `chromium` (push and scheduled runs use all three) |
 | Extra filter | Any `--grep` text, e.g. `TC_LOGIN_002` | None |
 
 The inputs are combined into tag filters, so for example *Feature `cart` + Scope `smoke`* runs only tests tagged both `@cart` and `@smoke`. On `prod` only tests tagged `@prod` run.
@@ -304,6 +307,24 @@ To find a channel ID in Slack, open the channel, click its name, and look at the
 
 Download the `playwright-reports-<env>` artefact (for example `playwright-reports-demo`) from the run page, or use the **Download report** button in Slack. Then open `playwright-report/html/index.html`. Failed tests include their screenshot, video and Playwright trace.
 
+### Login health check
+
+A second workflow, [`.github/workflows/healthcheck.yml`](.github/workflows/healthcheck.yml), checks every 30 minutes that users can still log in. It is separate from the main workflow so it stays fast: it installs only Chrome and runs only the health check suite, [`tests/healthcheck/login.healthcheck.spec.ts`](tests/healthcheck/login.healthcheck.spec.ts).
+
+| Test | What it checks |
+| --- | --- |
+| `HC_LOGIN_001` | On Chrome, the home page loads, the user logs in through the UI ("Welcome <username>" and the session cookie), and logs out again |
+| `HC_LOGIN_002` | The login API issues a token, and the API accepts that token |
+
+- **When it runs:** every 30 minutes on `demo`, and on demand from *Actions → Login health check → Run workflow*, where you can choose `demo` or `prod`. The tests only read data, so they are safe on prod. GitHub can start scheduled runs a few minutes late when it is busy.
+- **Alerts:** Slack is notified **only when the check fails**, so the channel isn't flooded with a success message every 30 minutes. The alert is the same message as the main workflow's, titled *Login health check failed*. It mentions `SLACK_MENTION_USER_ID`, lists the failed checks and links to the run. The report is uploaded only for failed runs, as `healthcheck-report-<env>`.
+- **False alarms:** a failed check is retried up to 2 times before it counts as failed, so one slow response from the demo site doesn't raise an alert.
+- **Overlap:** only one health check runs at a time per environment. If one is still running, the next one waits.
+- **Setup:** it uses the same secrets and variables as the main workflow (see [Setup](#setup)).
+- **Run it locally:** `npm run test:healthcheck`, or `ENV=prod npm run test:healthcheck` for prod.
+
+Scheduled workflows only run from the default branch (`main`), so the health check starts after this workflow is merged.
+
 ---
 
 ## Test case suite
@@ -311,7 +332,7 @@ Download the `playwright-reports-<env>` artefact (for example `playwright-report
 [`docs/DemoBlaze_Test_Cases.xlsx`](docs/DemoBlaze_Test_Cases.xlsx) has these sheets:
 
 - **Summary**: case counts by module, type and automation status
-- **Login** (20), **Cart & Order** (29), **API** (14): ID, feature, title, type (functional, negative, edge, security, UI), priority, preconditions, steps, data, expected result, automated spec or "Manual", notes
+- **Login** (22), **Cart & Order** (29), **API** (14): ID, feature, title, type (functional, negative, edge, security, UI), priority, preconditions, steps, data, expected result, automated spec or "Manual", notes
 - **Defects**: issues found, with steps to reproduce
 
 ### Defects found

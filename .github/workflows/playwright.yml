@@ -30,7 +30,7 @@ on:
         default: all
       browsers:
         description: 'Browsers for the e2e suite (space separated)'
-        default: 'chromium firefox webkit'
+        default: 'chromium'
       grep:
         description: 'Extra filter on title/tag, e.g. TC_LOGIN_002 (optional)'
         default: ''
