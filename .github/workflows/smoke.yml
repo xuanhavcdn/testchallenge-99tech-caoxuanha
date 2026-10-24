@@ -47,7 +47,7 @@ on:
 
 jobs:
   test:
-    name: test (${{ inputs.env || 'demo' }} / ${{ inputs.suite || 'all' }} / ${{ inputs.feature || 'all' }} / ${{ inputs.scope || (github.event_name == 'schedule' && 'smoke' || 'all') }})
+    name: test (${{ inputs.env || 'demo' }} / ${{ inputs.suite || 'all' }} / ${{ inputs.feature || 'all' }} / ${{ inputs.scope || 'smoke' }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
     # One run at a time per environment, whichever workflow started it: runs share the DemoBlaze
@@ -82,8 +82,8 @@ jobs:
         env:
           SUITE: ${{ inputs.suite || 'all' }}
           FEATURE: ${{ inputs.feature || 'all' }}
-          # The 2-hourly schedule runs smoke only; push and manual runs default to everything.
-          SCOPE: ${{ inputs.scope || (github.event_name == 'schedule' && 'smoke' || 'all') }}
+          # Push and the 2-hourly schedule run smoke only; manual and regression.yml runs pass their own scope.
+          SCOPE: ${{ inputs.scope || 'smoke' }}
           BROWSERS: ${{ inputs.browsers || 'chromium firefox webkit' }}
           EXTRA_GREP: ${{ inputs.grep }}
         run: |
@@ -155,5 +155,5 @@ jobs:
           SLACK_MENTION_USER_ID: ${{ vars.SLACK_MENTION_USER_ID || 'U06AG118M5K' }}
           JOB_STATUS: ${{ job.status }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          RUN_NAME: ${{ inputs.run_name || (github.event_name == 'schedule' && 'Smoke tests' || 'E2E tests') }}
+          RUN_NAME: ${{ inputs.run_name || (github.event_name == 'workflow_dispatch' && 'E2E tests' || 'Smoke tests') }}
         run: node scripts/notify-slack.mts
