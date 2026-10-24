@@ -299,15 +299,15 @@ The workflow [`.github/workflows/smoke.yml`](.github/workflows/smoke.yml) runs t
 
 | Workflow | Trigger | When | What runs |
 | --- | --- | --- | --- |
-| E2E tests | Push | Every push to `main`, including merged pull requests | Smoke tests (`@smoke`) on `demo`, all suites and browsers. The full regression runs on its weekday schedule instead. |
-| E2E tests | Schedule | Every 2 hours, on the hour (07:00, 09:00, … Vietnam time) | Smoke tests (`@smoke`) on `demo`, all suites and browsers |
-| E2E tests | Manual | *Actions → E2E tests → Run workflow* | What you choose (see below) |
+| Smoke tests | Push | Every push to `main`, including merged pull requests | Smoke tests (`@smoke`) on `demo`, all suites and browsers. The full regression runs on its weekday schedule instead. |
+| Smoke tests | Schedule | Every 2 hours, on the hour (07:00, 09:00, … Vietnam time) | Smoke tests (`@smoke`) on `demo`, all suites and browsers |
+| Smoke tests | Manual | *Actions → Smoke tests → Run workflow* | What you choose (see below) |
 | Regression tests | Schedule | Monday to Friday at 08:00 Vietnam time (01:00 UTC) | Regression tests (`@regression`) on `demo`, all suites and browsers |
 | Regression tests | Manual | *Actions → Regression tests → Run workflow* | Regression tests on the environment and browsers you choose (default `demo`, all three browsers) |
 
 Opening or updating a pull request does not start the workflow. To test a branch before merging, start a manual run on it: choose the branch in *Run workflow*.
 
-A manual run of *E2E tests* lets you choose:
+A manual run of *Smoke tests* lets you choose any scope, not only smoke:
 
 | Input | Options | Default |
 | --- | --- | --- |

@@ -1,4 +1,4 @@
-name: E2E tests
+name: Smoke tests
 
 on:
   push:
@@ -155,5 +155,6 @@ jobs:
           SLACK_MENTION_USER_ID: ${{ vars.SLACK_MENTION_USER_ID || 'U06AG118M5K' }}
           JOB_STATUS: ${{ job.status }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          RUN_NAME: ${{ inputs.run_name || (github.event_name == 'workflow_dispatch' && 'E2E tests' || 'Smoke tests') }}
+          # Slack title: what ran. A manual run can pick any scope, so its title follows the scope.
+          RUN_NAME: ${{ inputs.run_name || (inputs.scope == 'regression' && 'Regression tests' || inputs.scope == 'all' && 'E2E tests' || 'Smoke tests') }}
         run: node scripts/notify-slack.mts
