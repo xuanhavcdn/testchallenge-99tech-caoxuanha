@@ -18,8 +18,11 @@ Prerequisites: Node.js 20 or later (22 recommended) and a registered DemoBlaze a
 ```bash
 npm ci
 npx playwright install --with-deps      # browsers + OS dependencies
-cp .env.example .env                    # then set DEMO_USERNAME / DEMO_PASSWORD
+cp .env.example .env.demo               # then set DEMO_USERNAME / DEMO_PASSWORD
+cp .env.example .env.prod               # optional: only needed to run against prod
 ```
+
+Each environment has its own file, `.env.demo` or `.env.prod`, and `ENV` picks which one is loaded (default `demo`). There is no plain `.env` file. See [Configuration](#configuration).
 
 Run the demo and the full suite:
 
@@ -72,18 +75,31 @@ ENV=prod npx playwright test --grep "^(?=.*@e2e)(?=.*@login)"   # UI login tests
 
 ## Configuration
 
-Settings are resolved in [`config/env.ts`](config/env.ts). `ENV` (default `demo`) selects one file: `.env.demo` or `.env.prod`. Copy [`.env.example`](.env.example) to create them. Earlier sources in this list win:
+Settings are resolved in [`config/env.ts`](config/env.ts). Each environment has its own file, created from the template [`.env.example`](.env.example):
+
+| File | Loaded when | Contains |
+| --- | --- | --- |
+| `.env.demo` | `ENV=demo`, or `ENV` not set | URLs, the test account and runner settings for the demo environment |
+| `.env.prod` | `ENV=prod` | The same keys for prod |
+
+Earlier sources in this list win:
 
 1. Real environment variables, such as CI secrets or `HEADLESS=false npm test`
 2. `.env.<ENV>`
 3. The defaults in the table, so a missing file or variable still gives a working run
+
+`ENV` is read before any file is loaded, so it has to be set on the command line. Writing `ENV=prod` inside `.env.demo` does not switch environments.
 
 ```bash
 npm run test:demo          # loads .env.demo (same as plain `npm test`)
 npm run test:prod          # loads .env.prod
 npm run test:prod:smoke    # smoke tests on prod
 ENV=prod npm run test:api  # any script on prod
+ENV=demo npx playwright test --grep "^(?=.*@cart)(?=.*@smoke)"   # one environment + tags
+ENV=demo HEADLESS=false WORKER=1 npx playwright test --grep TC_E2E_001   # override one run
 ```
+
+> `ENV=… command` works in macOS and Linux shells. In PowerShell use `$env:ENV="prod"; npx playwright test`, and in cmd use `set ENV=prod && npx playwright test`.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
@@ -102,9 +118,9 @@ ENV=prod npm run test:api  # any script on prod
 | `PERF_API_P95_BUDGET_MS` | `3000` | Maximum p95 API latency |
 | `PERF_API_SAMPLES` | `10` | Requests sampled per endpoint |
 
-> The credentials use `DEMO_USERNAME` and `DEMO_PASSWORD` instead of `USERNAME` and `PASSWORD` on purpose. Windows and zsh already define `USERNAME` as the OS user, and that value would silently override the one in `.env`.
+> The credentials use `DEMO_USERNAME` and `DEMO_PASSWORD` instead of `USERNAME` and `PASSWORD` on purpose. Windows and zsh already define `USERNAME` as the OS user, and that value would silently override the one in `.env.<ENV>`.
 
-`.env.*` files are git-ignored. Only `.env.example` is committed.
+`.env.demo` and `.env.prod` hold credentials, so they are git-ignored. Only the template `.env.example` is committed. On CI the same values come from GitHub environment secrets instead of files.
 
 ---
 
@@ -112,27 +128,32 @@ ENV=prod npm run test:api  # any script on prod
 
 ```
 ├── config/
-│   └── env.ts                      # typed config: .env loading, defaults, credentials
+│   ├── env.ts                      # typed config: .env.<ENV> loading, defaults, credentials
+│   ├── tags.ts                     # every tag a test may use
+│   └── global-setup.ts             # runs once per run: resets the saved account session
 ├── src/
 │   ├── api/
 │   │   └── demoblaze-api.ts        # REST client (login, products, cart)
 │   ├── pages/                      # Page Object Model
+│   │   ├── global.ts               # locators and texts shared by several pages
 │   │   ├── base-page.ts            # shared navbar + login modal
 │   │   ├── home-page.ts
 │   │   ├── product-page.ts
 │   │   ├── cart-page.ts
 │   │   └── components/             # reusable UI parts
+│   │       ├── base-component.ts
 │   │       ├── nav-bar.ts
 │   │       ├── login-modal.ts
 │   │       ├── place-order-modal.ts
 │   │       └── order-confirmation.ts
 │   ├── fixtures/
-│   │   ├── api.ts                  # browser-less fixtures: api, account, accountCart
+│   │   ├── api.ts                  # browser-less fixtures: api, account, authSession, accountCart
+│   │   ├── auth-session.ts         # logs in once per run, only when a test needs it
 │   │   └── index.ts                # UI fixtures: page objects, guest cart, session
 │   ├── data/                       # test data: products, order builder
 │   └── utils/
 │       ├── dialog.ts               # native alert() handling
-│       └── account-lock.ts         # cross-process lock for the shared account cart
+│       └── account-lock.ts         # cross-process locks (account cart, login)
 ├── tests/
 │   ├── ui/                         # login, cart, place-order (functional, negative, edge)
 │   ├── e2e/                        # the challenge demo flow
@@ -140,7 +161,10 @@ ENV=prod npm run test:api  # any script on prod
 │   └── performance/                # page-load + latency budgets
 ├── scripts/generate-test-cases.mts # builds docs/DemoBlaze_Test_Cases.xlsx
 ├── docs/DemoBlaze_Test_Cases.xlsx
+├── .env.example                    # template for .env.demo / .env.prod (git-ignored)
 ├── playwright.config.ts            # projects, reporters, timeouts, artefacts
+├── eslint.config.mjs               # lint rules, incl. 120-character line limit
+├── .prettierrc.json                # formatting, same 120-character width
 └── .github/workflows/playwright.yml
 ```
 
@@ -149,6 +173,19 @@ ENV=prod npm run test:api  # any script on prod
 **Layers.** Specs describe behaviour. Page objects and components own selectors and interactions. Fixtures own setup and teardown. Configuration lives in one module. When the UI changes, only the page object has to change.
 
 **Components inside page objects.** The navbar and the login modal appear on every page, so they are components shared through `BasePage`. The place-order modal and the confirmation popup are components of `CartPage`.
+
+**Locator and text maps.** Each page or component file starts with two exported objects: `<name>Locator` holds its CSS selectors and `<name>Texts` holds its UI copy (button labels, page paths, alert messages). Selectors used by several pages, such as the `#tbodyid` content container and the modal footer, live in [`src/pages/global.ts`](src/pages/global.ts). Specs assert against the `Texts` objects, so a changed message is updated in one place. Inside the class, a locator becomes a field only when a spec checks it, it is a chained or role-based locator, or several methods use it. Everything else is written inline in the method that uses it.
+
+```ts
+export const cartPageLocator = { rows: `${globalLocator.content} > tr`, total: '#totalp' } as const;
+export const cartPageTexts = { path: '/cart.html', placeOrderButton: 'Place Order' } as const;
+
+export class CartPage extends BasePage {
+  readonly rows = this.page.locator(cartPageLocator.rows);
+  readonly placeOrderButton = this.page.getByRole('button', { name: cartPageTexts.placeOrderButton });
+  // ... methods: goto(), items(), deleteItem(), ...
+}
+```
 
 **Fixtures instead of `beforeEach` boilerplate.** Specs ask for what they need, for example `({ productPage, cartPage, api })`. Playwright creates only those objects and tears them down afterwards.
 
@@ -166,6 +203,10 @@ ENV=prod npm run test:api  # any script on prod
 
 **Traceability.** Test IDs (`TC_LOGIN_001`, `TC_ORDER_010`, …) are the same in the specs and in the Excel suite. The workbook is generated from code, so it stays in step with the tests.
 
+**Tags on each test.** Every `test()` carries its full tag list (suite, scope, function, environment) instead of inheriting tags from `test.describe`, so each test shows on its own where and when it runs.
+
+**Code quality.** ESLint checks TypeScript and Playwright rules and fails on lines longer than 120 characters. Prettier wraps code at the same width, so `npm run format` fixes most long lines. CI runs `typecheck`, `lint` and `format:check` before the tests.
+
 ### Requirement coverage
 
 | Requirement | How it is met |
@@ -173,7 +214,7 @@ ENV=prod npm run test:api  # any script on prod
 | Cross-browser / platform | Projects for Chromium, Firefox and WebKit (Safari engine), Chromium by default (`BROWSERS`). Runs on Linux, macOS and Windows. |
 | Modular, scalable design | Page objects + components, fixtures, data builders, API client. A new page or feature is one more page object and one more spec file. |
 | CI/CD | GitHub Actions: on push and PR, a daily smoke run, and on demand with project and tag inputs. Credentials come from repository secrets. Reports are uploaded as artefacts. The suite is a plain `npx playwright test`, so Jenkins and GitLab only need `npm ci && npx playwright install --with-deps && npx playwright test`. |
-| Configurable parameters | `.env`, `.env.<ENV>` and environment variables, see [Configuration](#configuration). |
+| Configurable parameters | `.env.demo` / `.env.prod` selected by `ENV`, overridable by environment variables; see [Configuration](#configuration). |
 | Reporting | Everything a run produces is in `playwright-report/`: HTML report (`html/`, open with `npm run report`), JUnit XML (`junit.xml`) for CI dashboards, JSON (`results.json`), and the screenshot, video and Playwright trace of each failure (`test-results/`). GitHub annotations on CI. |
 | Test types | **UI** (`tests/ui`), **E2E** (`tests/e2e`), **API** (`tests/api`), **performance** (`tests/performance`), **regression / smoke** through `@regression` and `@smoke` tags; see [Tags](#tags). |
 
@@ -185,9 +226,9 @@ ENV=prod npm run test:api  # any script on prod
 
 ## CI (GitHub Actions)
 
-1. In the repository go to *Settings → Secrets and variables → Actions* and add `DEMO_USERNAME` and `DEMO_PASSWORD`.
+1. In the repository go to *Settings → Environments*, create the environments `demo` and `prod`, and add `DEMO_USERNAME` and `DEMO_PASSWORD` as secrets of each. These replace `.env.demo` / `.env.prod` on CI. `BASE_URL` and `API_URL` can be set as environment variables if they differ from the defaults.
 2. The workflow runs on push and PR to `main`, every day at 08:00 Vietnam time (01:00 UTC, smoke tests on `demo`), and on demand from *Actions → E2E tests → Run workflow*. On demand you choose the environment (`demo`/`prod`), suite (`api`/`e2e`/`performance`), function (`login`/`product`/`cart`/`order`), scope (`smoke`/`regression`), browsers and an optional extra `--grep`. The job uses the GitHub environment of the same name, which holds the `DEMO_USERNAME`/`DEMO_PASSWORD` secrets and optional `BASE_URL`/`API_URL` variables.
-3. Download the `playwright-reports` artefact and open `playwright-report/html/index.html`.
+3. Download the `playwright-reports-<env>` artefact (for example `playwright-reports-demo`) and open `playwright-report/html/index.html`.
 
 All browsers run in one job on purpose. The account-cart lock works per machine, so splitting browsers across parallel jobs would let them collide on the shared account. On CI, tests retry up to two times to absorb the instability of the public demo backend.
 
