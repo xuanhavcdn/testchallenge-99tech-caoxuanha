@@ -7,6 +7,7 @@ export const Tag = {
   api: '@api',
   e2e: '@e2e',
   performance: '@performance',
+  healthcheck: '@healthcheck',
 
   // Scope: how critical the test is.
   smoke: '@smoke',

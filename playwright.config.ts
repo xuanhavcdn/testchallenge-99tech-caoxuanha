@@ -61,11 +61,15 @@ export default defineConfig({
     // UI + E2E suites run on each engine selected by BROWSERS.
     ...browsers.map(({ name, device }) => ({
       name,
-      testIgnore: ['api/**', 'performance/**'],
+      testIgnore: ['api/**', 'performance/**', 'healthcheck/**'],
       use: { ...device },
     })),
 
     // Performance budgets are measured on a single engine to keep numbers comparable between runs.
     { name: 'performance', testDir: './tests/performance', use: { ...devices['Desktop Chrome'] } },
+
+    // Login health check, run every 30 minutes by .github/workflows/healthcheck.yml. Kept out of the
+    // browser projects above so regular runs don't repeat it.
+    { name: 'healthcheck', testDir: './tests/healthcheck', use: { ...devices['Desktop Chrome'] } },
   ],
 });

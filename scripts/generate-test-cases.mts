@@ -31,6 +31,7 @@ const ORDER = 'tests/ui/place-order.spec.ts';
 const E2E = 'tests/e2e/login-and-place-order.spec.ts';
 const API_AUTH = 'tests/api/auth.api.spec.ts';
 const API_CART = 'tests/api/cart.api.spec.ts';
+const HEALTH = 'tests/healthcheck/login.healthcheck.spec.ts';
 
 const registered = 'A registered account exists (DEMO_USERNAME / DEMO_PASSWORD)';
 const onHome = 'User is logged out and on the home page';
@@ -301,6 +302,34 @@ const cases: TestCase[] = [
     data: 'Expired token',
     expected: 'Alert "Your token has expired, please login again."; user shown as logged out',
     automation: 'Manual',
+  },
+  {
+    id: 'HC_LOGIN_001',
+    module: 'Login',
+    feature: 'Health check',
+    title: 'User can log in and out through the UI (every 30 minutes)',
+    type: 'Functional',
+    priority: 'P1',
+    preconditions: registered,
+    steps: ['Open the home page', 'Log in with valid credentials', 'Log out'],
+    data: 'Valid account',
+    expected: 'Home page loads; "Welcome <username>" shown and tokenp_ cookie set; after logout "Log in" is back',
+    automation: HEALTH,
+    notes: 'Runs on Chrome every 30 minutes (.github/workflows/healthcheck.yml); Slack alert on failure.',
+  },
+  {
+    id: 'HC_LOGIN_002',
+    module: 'Login',
+    feature: 'Health check',
+    title: 'Login API issues a token the API accepts (every 30 minutes)',
+    type: 'Functional',
+    priority: 'P1',
+    preconditions: registered,
+    steps: ['POST /login with valid credentials', 'POST /check with the returned token'],
+    data: 'Valid account',
+    expected: '/check returns the account username and the same token',
+    automation: HEALTH,
+    notes: 'Runs with HC_LOGIN_001; Slack alert on failure.',
   },
 
   // ---------------------------------------------------------------- Cart
