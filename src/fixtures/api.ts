@@ -1,5 +1,6 @@
 import { test as base, expect } from '@playwright/test';
-import { credentials, type Credentials } from '../../config/env';
+import { credentials, env, type Credentials } from '../../config/env';
+import { KnownBug } from '../../config/tags';
 import { DemoblazeApi } from '../api/demoblaze-api';
 import { withAccountLock } from '../utils/account-lock';
 import { loadOrCreateSession, type Session } from './auth-session';
@@ -14,6 +15,8 @@ export interface ApiFixtures {
    * again afterwards.
    */
   accountCart: Session;
+  /** Auto fixture: skips a test tagged `KnownBug.<ENV>` for the current `ENV` (see config/tags.ts). */
+  knownBug: void;
 }
 
 export interface WorkerFixtures {
@@ -27,6 +30,17 @@ export interface WorkerFixtures {
 
 /** Browser-less fixtures, safe for the `api` project. */
 export const test = base.extend<ApiFixtures, WorkerFixtures>({
+  // Runs before every test, API and UI alike (the UI fixtures extend these). The skip reason
+  // names the defect from the test's `issue` annotation, so the report says why it was skipped.
+  knownBug: [
+    async ({}, use, testInfo) => {
+      const issue = testInfo.annotations.find((a) => a.type === 'issue')?.description;
+      testInfo.skip(testInfo.tags.includes(KnownBug[env.name]), `Known bug on ${env.name}${issue ? `: ${issue}` : ''}`);
+      await use();
+    },
+    { auto: true },
+  ],
+
   authSession: [async ({ playwright }, use) => use(await loadOrCreateSession(playwright)), { scope: 'worker' }],
 
   api: async ({ request }, use) => {

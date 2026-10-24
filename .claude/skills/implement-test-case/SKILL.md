@@ -129,7 +129,10 @@ test.describe('Cart', () => {
   (see the missing-field cases in `tests/ui/login.spec.ts`).
 - **Known defects**: write the test for the *correct* behaviour and start it with
   `test.fail(true, 'Known defect: <what is wrong>')`; add the defect to the Defects list in
-  `scripts/generate-test-cases.mts`.
+  `scripts/generate-test-cases.mts`. If the defect occurs only on some environments (or the test
+  is not worth running until it is fixed), tag it `KnownBug.<env>` instead and add
+  `annotation: { type: 'issue', description: '<defect id>: <what is wrong>' }`; the auto fixture
+  `knownBug` skips it on that environment.
 - **Negative checks** wait for a definite outcome (alert text, `submitOrder()` result), never only for
   an absence that would pass before the page reacts.
 - Shared arrange steps go in `test.beforeEach` inside a nested `describe`, not copied per test.
@@ -164,7 +167,8 @@ not optional.
 
 - Data-driven loops put the `{ tag }` on the generated `test()` too; if rows differ (e.g. one is
   smoke), carry the tags in the row data.
-- `test.fail()` known-defect tests keep their normal tags.
+- `test.fail()` known-defect tests keep their normal tags. `KnownBug.<env>` tags (from
+  `config/tags.ts`) go after the environment tags, one per environment where the defect occurs.
 - Check the result: `npx playwright test --list --grep "@cart"` (any tag) must list the new test, and
   `ENV=prod npx playwright test --list` must not list anything that writes data.
 

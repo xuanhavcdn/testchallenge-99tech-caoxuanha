@@ -24,7 +24,7 @@ How each item in the [challenge brief](https://s5tech.notion.site/QA-Automation-
 - [x] Functional scenarios: 25 cases
 - [x] Edge cases: 15 cases
 - [x] Negative paths: 16 cases
-- [x] Documented in Excel: [`docs/DemoBlaze_Test_Cases.xlsx`](docs/DemoBlaze_Test_Cases.xlsx), with 65 cases (Login 22, Cart & Order 29, API 14), 50 of them automated and 15 manual. See [Test case suite](#test-case-suite).
+- [x] Documented in Excel: [`docs/DemoBlaze_Test_Cases.xlsx`](docs/DemoBlaze_Test_Cases.xlsx), with 65 cases (Login 22, Cart & Order 29, API 14), 52 of them automated and 13 manual. See [Test case suite](#test-case-suite).
 
 ### End-to-end automation framework
 
@@ -56,7 +56,7 @@ How each item in the [challenge brief](https://s5tech.notion.site/QA-Automation-
 
 ### Extras beyond the brief
 
-- [x] **Defect log:** 7 defects found during analysis, in the workbook and in [Defects found](#defects-found). Three of them are executable `test.fail()` tests, which turn red once the defect is fixed.
+- [x] **Defect log:** 7 defects found during analysis, in the workbook and in [Defects found](#defects-found). Three of them are executable `test.fail()` tests, which turn red once the defect is fixed, and two more are tests skipped as known bugs on the environments where they occur.
 - [x] **REST API suite:** 15 tests covering auth, products and cart
 - [x] **Performance budgets:** page-load Navigation Timing and p50/p95 API latency, attached to the report
 - [x] **Demo and prod environments:** on prod, only read-only tests tagged `@prod` run, so an order can never be placed there
@@ -126,6 +126,7 @@ All tags are defined in [config/tags.ts](config/tags.ts).
 | Scope | `@smoke`, `@regression` | Critical path / full regression |
 | Function | `@login`, `@product`, `@cart`, `@order` | Feature under test |
 | Environment | `@demo`, `@prod` | Where a test may run. Every test runs on `demo`; only read-only tests that leave no data behind (login, product API, empty cart, performance) are tagged `@prod` |
+| Known bug | `@known-bug-demo`, `@known-bug-prod` | The test hits a known defect on that environment, so it is skipped there and still runs on the others. See [Known bugs](#known-bugs) |
 
 The environment tag is applied automatically: `playwright.config.ts` only runs tests tagged with the current `ENV`, so `ENV=prod` can never place an order. Combine the other tags with regex lookaheads:
 
@@ -133,6 +134,34 @@ The environment tag is applied automatically: `playwright.config.ts` only runs t
 npx playwright test --grep "^(?=.*@api)(?=.*@cart)"             # API cart tests on demo
 ENV=prod npx playwright test --grep "^(?=.*@e2e)(?=.*@login)"   # UI login tests on prod
 ```
+
+#### Known bugs
+
+When a test fails because of a known defect on one environment, tag it with `KnownBug.<env>` from [config/tags.ts](config/tags.ts) and name the defect in an `issue` annotation:
+
+```ts
+test(
+  'TC_ORDER_011 rejects an invalid expiry month and year',
+  {
+    tag: [Tag.e2e, Tag.regression, Tag.cart, Tag.order, Tag.demo, KnownBug.demo],
+    annotation: { type: 'issue', description: 'D-05: card expiry month and year are not validated' },
+  },
+  async ({ cartPage }) => { ... },
+);
+```
+
+The auto fixture `knownBug` ([src/fixtures/api.ts](src/fixtures/api.ts)) skips the test when the run's `ENV` matches the tag. The test still shows in the reports and the Slack message as skipped, with the reason (`Known bug on demo: D-05: ...`).
+
+| Test tags | `ENV=demo` | `ENV=prod` |
+| --- | --- | --- |
+| `Tag.demo, Tag.prod` | runs | runs |
+| `Tag.demo, Tag.prod, KnownBug.prod` | runs | skipped |
+| `Tag.demo, Tag.prod, KnownBug.demo` | skipped | runs |
+| `Tag.demo, Tag.prod, KnownBug.demo, KnownBug.prod` | skipped | skipped |
+
+A known-bug tag exists for every name in `envNames`, so adding an environment there also adds its `KnownBug` tag. Remove the tag once the defect is fixed. To list all known bugs, run `npx playwright test --list --grep @known-bug`.
+
+Skip or `test.fail()`? Use `test.fail()` when the defect fails the test the same way every time. The test still runs and turns red once the defect is fixed. Use `KnownBug` when the defect occurs only on some environments, or when running the test is not useful until it is fixed.
 
 ---
 
@@ -266,7 +295,7 @@ export class CartPage extends BasePage {
 
 **Reliable handling of `alert()`.** DemoBlaze reports most outcomes through native alerts, some of them synchronous. `acceptDialog()` registers the listener before the action and accepts the dialog inside the listener, which avoids the deadlock you get by awaiting the click and the dialog together. Negative order checks wait for a definite outcome (a confirmation or a rejection alert) instead of asserting that something is absent, so they cannot pass before the page has reacted.
 
-**Known defects are executable.** Defects found during analysis are written as tests of the correct behaviour and marked `test.fail()`, for example "an empty cart cannot be purchased". The suite stays green, the defect is documented in the report, and the test turns red once the defect is fixed, which tells you to remove the annotation.
+**Known defects are executable.** Defects found during analysis are written as tests of the correct behaviour and marked `test.fail()`, for example "an empty cart cannot be purchased". The suite stays green, the defect is documented in the report, and the test turns red once the defect is fixed, which tells you to remove the annotation. A defect that occurs only on some environments is tagged `KnownBug.<env>` instead, which skips the test there (see [Known bugs](#known-bugs)).
 
 **Traceability.** Test IDs (`TC_LOGIN_001`, `TC_ORDER_010`, …) are the same in the specs and in the Excel suite. The workbook is generated from code, so it stays in step with the tests.
 
