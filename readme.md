@@ -7,7 +7,8 @@ An end-to-end test automation framework for [DemoBlaze](https://www.demoblaze.co
 | Test case suite (Excel) | [`docs/DemoBlaze_Test_Cases.xlsx`](docs/DemoBlaze_Test_Cases.xlsx): 63 cases and a defect log |
 | Automation framework | this repository |
 | Demo script: log in, add to cart, place order | [`tests/e2e/login-and-place-order.spec.ts`](tests/e2e/login-and-place-order.spec.ts) |
-| CI pipeline | [`.github/workflows/playwright.yml`](.github/workflows/playwright.yml) |
+| CI pipeline: on push to `main`, a daily schedule and on demand | [`.github/workflows/playwright.yml`](.github/workflows/playwright.yml), see [CI](#ci-github-actions) |
+| Slack notification after every CI run | [`scripts/notify-slack.mts`](scripts/notify-slack.mts), see [Slack notification](#slack-notification) |
 
 ---
 
@@ -213,9 +214,9 @@ export class CartPage extends BasePage {
 | --- | --- |
 | Cross-browser / platform | Projects for Chromium, Firefox and WebKit (Safari engine), Chromium by default (`BROWSERS`). Runs on Linux, macOS and Windows. |
 | Modular, scalable design | Page objects + components, fixtures, data builders, API client. A new page or feature is one more page object and one more spec file. |
-| CI/CD | GitHub Actions: on push and PR, a daily smoke run, and on demand with project and tag inputs. Credentials come from repository secrets. Reports are uploaded as artefacts. The suite is a plain `npx playwright test`, so Jenkins and GitLab only need `npm ci && npx playwright install --with-deps && npx playwright test`. |
+| CI/CD | GitHub Actions: on push to `main`, a daily smoke run, and on demand with environment, suite, feature, scope and browser inputs. Credentials come from GitHub environment secrets. Reports are uploaded as artefacts, and every run posts its result to Slack. The suite is a plain `npx playwright test`, so Jenkins and GitLab only need `npm ci && npx playwright install --with-deps && npx playwright test`. See [CI](#ci-github-actions). |
 | Configurable parameters | `.env.demo` / `.env.prod` selected by `ENV`, overridable by environment variables; see [Configuration](#configuration). |
-| Reporting | Everything a run produces is in `playwright-report/`: HTML report (`html/`, open with `npm run report`), JUnit XML (`junit.xml`) for CI dashboards, JSON (`results.json`), and the screenshot, video and Playwright trace of each failure (`test-results/`). GitHub annotations on CI. |
+| Reporting | Everything a run produces is in `playwright-report/`: HTML report (`html/`, open with `npm run report`), JUnit XML (`junit.xml`) for CI dashboards, JSON (`results.json`), and the screenshot, video and Playwright trace of each failure (`test-results/`). GitHub annotations on CI, and a Slack summary after every CI run. |
 | Test types | **UI** (`tests/ui`), **E2E** (`tests/e2e`), **API** (`tests/api`), **performance** (`tests/performance`), **regression / smoke** through `@regression` and `@smoke` tags; see [Tags](#tags). |
 
 ### Performance tests
@@ -226,11 +227,82 @@ export class CartPage extends BasePage {
 
 ## CI (GitHub Actions)
 
-1. In the repository go to *Settings → Environments*, create the environments `demo` and `prod`, and add `DEMO_USERNAME` and `DEMO_PASSWORD` as secrets of each. These replace `.env.demo` / `.env.prod` on CI. `BASE_URL` and `API_URL` can be set as environment variables if they differ from the defaults.
-2. The workflow runs on push and PR to `main`, every day at 08:00 Vietnam time (01:00 UTC, smoke tests on `demo`), and on demand from *Actions → E2E tests → Run workflow*. On demand you choose the environment (`demo`/`prod`), suite (`api`/`e2e`/`performance`), function (`login`/`product`/`cart`/`order`), scope (`smoke`/`regression`), browsers and an optional extra `--grep`. The job uses the GitHub environment of the same name, which holds the `DEMO_USERNAME`/`DEMO_PASSWORD` secrets and optional `BASE_URL`/`API_URL` variables.
-3. Download the `playwright-reports-<env>` artefact (for example `playwright-reports-demo`) and open `playwright-report/html/index.html`.
+The workflow [`.github/workflows/playwright.yml`](.github/workflows/playwright.yml) runs the suite, publishes the reports and posts the result to Slack.
 
-All browsers run in one job on purpose. The account-cart lock works per machine, so splitting browsers across parallel jobs would let them collide on the shared account. On CI, tests retry up to two times to absorb the instability of the public demo backend.
+### When it runs
+
+| Trigger | When | What runs |
+| --- | --- | --- |
+| Push | Every push to `main` | Everything on `demo`: API, UI/E2E on Chromium, Firefox and WebKit, performance |
+| Schedule | Every day at 08:00 Vietnam time (01:00 UTC) | Smoke tests (`@smoke`) on `demo`, all suites and browsers |
+| Manual | *Actions → E2E tests → Run workflow* | What you choose (see below) |
+
+Opening or updating a pull request does not start the workflow. To test a branch before merging, start a manual run on it: choose the branch in *Run workflow*.
+
+A manual run lets you choose:
+
+| Input | Options | Default |
+| --- | --- | --- |
+| Environment | `demo`, `prod` | `demo` |
+| Suite | `all`, `api`, `e2e`, `performance` | `all` |
+| Feature | `all`, `login`, `product`, `cart`, `order` | `all` |
+| Scope | `all`, `smoke`, `regression` | `all` |
+| Browsers | Any of `chromium firefox webkit` | All three |
+| Extra filter | Any `--grep` text, e.g. `TC_LOGIN_002` | None |
+
+The inputs are combined into tag filters, so for example *Feature `cart` + Scope `smoke`* runs only tests tagged both `@cart` and `@smoke`. On `prod` only tests tagged `@prod` run.
+
+### Scheduled run
+
+The daily run checks every morning that the critical paths still work on the live demo site, even when no code has changed. It runs the `@smoke` tests on `demo` across all suites and browsers, and its result arrives in Slack like any other run. To change the time, edit the `cron` line in the workflow. GitHub cron times are in UTC and can start a few minutes late when GitHub is busy.
+
+### What a run does
+
+1. Installs dependencies, then checks the code with `npm run typecheck`, `npm run lint` and `npm run format:check`.
+2. Works out the Playwright projects and the `--grep` filter from the trigger and inputs.
+3. Installs only the browsers that the run needs.
+4. Runs the tests with 2 workers. Failed tests are retried up to 2 times, to absorb the instability of the public demo site.
+5. Uploads the reports as the artefact `playwright-reports-<env>`, kept for 14 days.
+6. Posts the result to Slack (see below).
+
+All browsers run in one job on purpose. The account-cart lock works per machine, so splitting browsers across parallel jobs would let them collide on the shared account.
+
+### Slack notification
+
+Every run, whether it passed, failed or was cancelled, ends with a message in the Slack channel. [`scripts/notify-slack.mts`](scripts/notify-slack.mts) builds it from the JSON report. The message contains:
+
+- A mention of `SLACK_MENTION_USER_ID`, so the person gets a push notification
+- The status (passed, failed or cancelled), also shown as the card colour (green, red or grey)
+- Test counts (passed, failed, flaky, skipped) and how long the run took
+- Up to 10 failed tests, as `[browser] test title`
+- The run details: environment, suite, feature, scope, browsers, branch, commit, trigger and who started it
+- **Open test run** and **Download report** buttons
+
+If the run stops before the tests (for example on a lint error), the message says that no test results were produced. The notification never fails the job: a missing token or channel, or a bot that isn't in the channel, only logs a warning in the run.
+
+To preview the message without sending it:
+
+```bash
+SLACK_DRY_RUN=1 node scripts/notify-slack.mts
+```
+
+### Setup
+
+Add these under the repository *Settings*:
+
+| Name | Kind | Where | Purpose |
+| --- | --- | --- | --- |
+| `DEMO_USERNAME`, `DEMO_PASSWORD` | Secret | *Environments → `demo`* and *`prod`* | The test account. These replace `.env.demo` / `.env.prod` on CI. |
+| `BASE_URL`, `API_URL` | Variable (optional) | *Environments → `demo`* and *`prod`* | Only needed if they differ from the defaults |
+| `SLACK_BOT_TOKEN` | Secret | *Secrets and variables → Actions* | Slack bot token. The bot needs the `chat:write` scope. |
+| `SLACK_CHANNEL_ID` | Variable | *Secrets and variables → Actions → Variables* | Channel to post in, e.g. `C0123456789`. Invite the bot to it with `/invite @bot-name`. |
+| `SLACK_MENTION_USER_ID` | Variable (optional) | *Secrets and variables → Actions → Variables* | Who to mention. Defaults to `U06AG118M5K`. |
+
+To find a channel ID in Slack, open the channel, click its name, and look at the bottom of the *About* tab. A member ID is under *View full profile → ⋮ → Copy member ID*.
+
+### Reports
+
+Download the `playwright-reports-<env>` artefact (for example `playwright-reports-demo`) from the run page, or use the **Download report** button in Slack. Then open `playwright-report/html/index.html`. Failed tests include their screenshot, video and Playwright trace.
 
 ---
 
