@@ -4,8 +4,18 @@ on:
   push:
     branches: [main]
   schedule:
-    # Daily smoke run on demo at 08:00 Vietnam time (UTC+7). GitHub cron is in UTC.
-    - cron: '0 1 * * *'
+    # Smoke run on demo every 2 hours (07:00, 09:00, ... Vietnam time, UTC+7). GitHub cron is in UTC.
+    - cron: '0 */2 * * *'
+  # Lets other workflows reuse this one, e.g. regression.yml. Empty inputs fall back to the same defaults.
+  workflow_call:
+    inputs:
+      env: { type: string, default: '' }
+      suite: { type: string, default: '' }
+      feature: { type: string, default: '' }
+      scope: { type: string, default: '' }
+      browsers: { type: string, default: '' }
+      grep: { type: string, default: '' }
+      run_name: { type: string, default: '' }
   workflow_dispatch:
     inputs:
       env:
@@ -40,6 +50,11 @@ jobs:
     name: test (${{ inputs.env || 'demo' }} / ${{ inputs.suite || 'all' }} / ${{ inputs.feature || 'all' }} / ${{ inputs.scope || (github.event_name == 'schedule' && 'smoke' || 'all') }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # One run at a time per environment, whichever workflow started it: runs share the DemoBlaze
+    # account and its cart, and the account-cart lock only works within one machine.
+    concurrency:
+      group: e2e-${{ inputs.env || 'demo' }}
+      cancel-in-progress: false
     # Credentials and URLs come from the GitHub environment of the same name (Settings -> Environments).
     environment: ${{ inputs.env || 'demo' }}
     env:
@@ -67,7 +82,7 @@ jobs:
         env:
           SUITE: ${{ inputs.suite || 'all' }}
           FEATURE: ${{ inputs.feature || 'all' }}
-          # The daily schedule runs smoke only; push and manual runs default to everything.
+          # The 2-hourly schedule runs smoke only; push and manual runs default to everything.
           SCOPE: ${{ inputs.scope || (github.event_name == 'schedule' && 'smoke' || 'all') }}
           BROWSERS: ${{ inputs.browsers || 'chromium firefox webkit' }}
           EXTRA_GREP: ${{ inputs.grep }}
@@ -140,4 +155,5 @@ jobs:
           SLACK_MENTION_USER_ID: ${{ vars.SLACK_MENTION_USER_ID || 'U06AG118M5K' }}
           JOB_STATUS: ${{ job.status }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          RUN_NAME: ${{ inputs.run_name || (github.event_name == 'schedule' && 'Smoke tests' || 'E2E tests') }}
         run: node scripts/notify-slack.mts

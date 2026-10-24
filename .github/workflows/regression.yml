@@ -1,0 +1,27 @@
+name: Regression tests
+
+on:
+  schedule:
+    # Full regression on demo every weekday (Mon-Fri) at 08:00 Vietnam time (UTC+7). GitHub cron is in UTC.
+    - cron: '0 1 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      env:
+        description: 'Target environment (only tests tagged @<env> run)'
+        type: choice
+        options: [demo, prod]
+        default: demo
+      browsers:
+        description: 'Browsers for the e2e suite (space separated)'
+        default: 'chromium firefox webkit'
+
+jobs:
+  # Reuses the E2E workflow, so setup, reports and the Slack message are the same; only the scope differs.
+  regression:
+    uses: ./.github/workflows/smoke.yml
+    with:
+      env: ${{ inputs.env || 'demo' }}
+      scope: regression
+      browsers: ${{ inputs.browsers || 'chromium firefox webkit' }}
+      run_name: Regression tests
+    secrets: inherit
