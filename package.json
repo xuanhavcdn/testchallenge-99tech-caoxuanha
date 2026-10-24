@@ -1,0 +1,60 @@
+{
+  "name": "testchallenge-99tech-caoxuanha",
+  "version": "1.0.0",
+  "description": "E2E test automation framework for DemoBlaze (Playwright + TypeScript)",
+  "scripts": {
+    "test": "playwright test",
+    "test:smoke": "playwright test --grep @smoke",
+    "test:regression": "playwright test --grep @regression",
+    "test:e2e": "playwright test --grep @e2e",
+    "test:login": "playwright test --grep @login",
+    "test:product": "playwright test --grep @product",
+    "test:cart": "playwright test --grep @cart",
+    "test:order": "playwright test --grep @order",
+    "test:demo": "ENV=demo playwright test",
+    "test:demo:smoke": "ENV=demo playwright test --grep @smoke",
+    "test:prod": "ENV=prod playwright test",
+    "test:prod:smoke": "ENV=prod playwright test --grep @smoke",
+    "test:ui": "BROWSERS=chromium,firefox,webkit playwright test --project=chromium --project=firefox --project=webkit",
+    "test:api": "playwright test --project=api",
+    "test:perf": "playwright test --project=performance",
+    "test:chromium": "playwright test --project=chromium",
+    "test:firefox": "BROWSERS=firefox playwright test --project=firefox",
+    "test:webkit": "BROWSERS=webkit playwright test --project=webkit",
+    "test:headed": "playwright test --project=chromium --headed",
+    "test:all-browsers": "BROWSERS=chromium,firefox,webkit playwright test",
+    "report": "playwright show-report playwright-report/html",
+    "typecheck": "tsc -p .",
+    "testcases": "node scripts/generate-test-cases.mts",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"**/*.{ts,mts,mjs}\"",
+    "format:check": "prettier --check \"**/*.{ts,mts,mjs}\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xuanhavcdn/testchallenge-99tech-caoxuanha.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/xuanhavcdn/testchallenge-99tech-caoxuanha/issues"
+  },
+  "homepage": "https://github.com/xuanhavcdn/testchallenge-99tech-caoxuanha#readme",
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.64.1",
+    "@stylistic/eslint-plugin": "^5.10.0",
+    "@types/node": "^26.6.5",
+    "dotenv": "^18.0.9",
+    "eslint": "^10.13.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-playwright": "^2.12.1",
+    "exceljs": "^4.4.0",
+    "prettier": "^3.9.10",
+    "typescript": "~6.0",
+    "typescript-eslint": "^8.72.0"
+  },
+  "private": true
+}
