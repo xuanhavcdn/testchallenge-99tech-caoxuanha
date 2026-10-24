@@ -88,7 +88,6 @@ function buildMessage() {
       ].join('\n')
     : undefined;
 
-  const pr = e.PR_NUMBER ? `<${e.PR_URL}|#${e.PR_NUMBER}>` : undefined;
   const context = [
     `*Suite* ${e.SUITE ?? 'all'}`,
     `*Feature* ${e.FEATURE ?? 'all'}`,
@@ -97,7 +96,6 @@ function buildMessage() {
     `*Branch* ${e.BRANCH ?? e.GITHUB_REF_NAME ?? '-'}`,
     `*Commit* <${repoUrl}/commit/${sha}|${sha.slice(0, 7)}>`,
     `*Trigger* ${e.GITHUB_EVENT_NAME ?? '-'} by ${e.GITHUB_ACTOR ?? '-'}`,
-    ...(pr ? [`*PR* ${pr}`] : []),
   ].join('   ·   ');
 
   const blocks = [

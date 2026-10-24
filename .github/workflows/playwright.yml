@@ -3,8 +3,6 @@ name: E2E tests
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
   schedule:
     # Daily smoke run on demo at 08:00 Vietnam time (UTC+7). GitHub cron is in UTC.
     - cron: '0 1 * * *'
@@ -69,7 +67,7 @@ jobs:
         env:
           SUITE: ${{ inputs.suite || 'all' }}
           FEATURE: ${{ inputs.feature || 'all' }}
-          # The daily schedule runs smoke only; push, PR and manual runs default to everything.
+          # The daily schedule runs smoke only; push and manual runs default to everything.
           SCOPE: ${{ inputs.scope || (github.event_name == 'schedule' && 'smoke' || 'all') }}
           BROWSERS: ${{ inputs.browsers || 'chromium firefox webkit' }}
           EXTRA_GREP: ${{ inputs.grep }}
@@ -142,8 +140,4 @@ jobs:
           SLACK_MENTION_USER_ID: ${{ vars.SLACK_MENTION_USER_ID || 'U06AG118M5K' }}
           JOB_STATUS: ${{ job.status }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          BRANCH: ${{ github.head_ref || github.ref_name }}
-          COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_URL: ${{ github.event.pull_request.html_url }}
         run: node scripts/notify-slack.mts

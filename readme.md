@@ -7,7 +7,7 @@ An end-to-end test automation framework for [DemoBlaze](https://www.demoblaze.co
 | Test case suite (Excel) | [`docs/DemoBlaze_Test_Cases.xlsx`](docs/DemoBlaze_Test_Cases.xlsx): 63 cases and a defect log |
 | Automation framework | this repository |
 | Demo script: log in, add to cart, place order | [`tests/e2e/login-and-place-order.spec.ts`](tests/e2e/login-and-place-order.spec.ts) |
-| CI pipeline: on push, PR, a daily schedule and on demand | [`.github/workflows/playwright.yml`](.github/workflows/playwright.yml), see [CI](#ci-github-actions) |
+| CI pipeline: on push to `main`, a daily schedule and on demand | [`.github/workflows/playwright.yml`](.github/workflows/playwright.yml), see [CI](#ci-github-actions) |
 | Slack notification after every CI run | [`scripts/notify-slack.mts`](scripts/notify-slack.mts), see [Slack notification](#slack-notification) |
 
 ---
@@ -214,7 +214,7 @@ export class CartPage extends BasePage {
 | --- | --- |
 | Cross-browser / platform | Projects for Chromium, Firefox and WebKit (Safari engine), Chromium by default (`BROWSERS`). Runs on Linux, macOS and Windows. |
 | Modular, scalable design | Page objects + components, fixtures, data builders, API client. A new page or feature is one more page object and one more spec file. |
-| CI/CD | GitHub Actions: on push and PR, a daily smoke run, and on demand with environment, suite, feature, scope and browser inputs. Credentials come from GitHub environment secrets. Reports are uploaded as artefacts, and every run posts its result to Slack. The suite is a plain `npx playwright test`, so Jenkins and GitLab only need `npm ci && npx playwright install --with-deps && npx playwright test`. See [CI](#ci-github-actions). |
+| CI/CD | GitHub Actions: on push to `main`, a daily smoke run, and on demand with environment, suite, feature, scope and browser inputs. Credentials come from GitHub environment secrets. Reports are uploaded as artefacts, and every run posts its result to Slack. The suite is a plain `npx playwright test`, so Jenkins and GitLab only need `npm ci && npx playwright install --with-deps && npx playwright test`. See [CI](#ci-github-actions). |
 | Configurable parameters | `.env.demo` / `.env.prod` selected by `ENV`, overridable by environment variables; see [Configuration](#configuration). |
 | Reporting | Everything a run produces is in `playwright-report/`: HTML report (`html/`, open with `npm run report`), JUnit XML (`junit.xml`) for CI dashboards, JSON (`results.json`), and the screenshot, video and Playwright trace of each failure (`test-results/`). GitHub annotations on CI, and a Slack summary after every CI run. |
 | Test types | **UI** (`tests/ui`), **E2E** (`tests/e2e`), **API** (`tests/api`), **performance** (`tests/performance`), **regression / smoke** through `@regression` and `@smoke` tags; see [Tags](#tags). |
@@ -234,9 +234,10 @@ The workflow [`.github/workflows/playwright.yml`](.github/workflows/playwright.y
 | Trigger | When | What runs |
 | --- | --- | --- |
 | Push | Every push to `main` | Everything on `demo`: API, UI/E2E on Chromium, Firefox and WebKit, performance |
-| Pull request | Every PR into `main`, and each new commit on it | Everything on `demo`, as for a push |
 | Schedule | Every day at 08:00 Vietnam time (01:00 UTC) | Smoke tests (`@smoke`) on `demo`, all suites and browsers |
 | Manual | *Actions → E2E tests → Run workflow* | What you choose (see below) |
+
+Opening or updating a pull request does not start the workflow. To test a branch before merging, start a manual run on it: choose the branch in *Run workflow*.
 
 A manual run lets you choose:
 
@@ -274,7 +275,7 @@ Every run, whether it passed, failed or was cancelled, ends with a message in th
 - The status (passed, failed or cancelled), also shown as the card colour (green, red or grey)
 - Test counts (passed, failed, flaky, skipped) and how long the run took
 - Up to 10 failed tests, as `[browser] test title`
-- The run details: environment, suite, feature, scope, browsers, branch, commit, trigger and who started it, plus the PR link on PR runs
+- The run details: environment, suite, feature, scope, browsers, branch, commit, trigger and who started it
 - **Open test run** and **Download report** buttons
 
 If the run stops before the tests (for example on a lint error), the message says that no test results were produced. The notification never fails the job: a missing token or channel, or a bot that isn't in the channel, only logs a warning in the run.
